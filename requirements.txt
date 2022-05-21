@@ -2,3 +2,4 @@ jupyterlab    ~= 3.4
 pandas        ~= 1.4
 pyarrow       ~= 8.0
 requests      ~= 2.27
+scikit-learn  ~= 1.1
