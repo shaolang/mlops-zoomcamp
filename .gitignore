@@ -2,3 +2,4 @@
 *.pkl
 *.swp
 .ipynb_checkpoints/
+mlruns/
