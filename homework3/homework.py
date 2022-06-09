@@ -1,5 +1,5 @@
 from pathlib import Path
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 from prefect.task_runners import SequentialTaskRunner
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
@@ -32,10 +32,11 @@ def prepare_features(df, categorical, train=True):
     df = df[(df.duration >= 1) & (df.duration <= 60)].copy()
 
     mean_duration = df.duration.mean()
+    logger = get_run_logger()
     if train:
-        print(f"The mean duration of training is {mean_duration}")
+        logger.info(f"The mean duration of training is {mean_duration}")
     else:
-        print(f"The mean duration of validation is {mean_duration}")
+        logger.info(f"The mean duration of validation is {mean_duration}")
 
     df[categorical] = df[categorical].fillna(-1).astype('int').astype('str')
     return df
@@ -47,15 +48,16 @@ def train_model(df, categorical):
     dv = DictVectorizer()
     X_train = dv.fit_transform(train_dicts)
     y_train = df.duration.values
+    logger = get_run_logger()
 
-    print(f"The shape of X_train is {X_train.shape}")
-    print(f"The DictVectorizer has {len(dv.feature_names_)} features")
+    logger.info(f"The shape of X_train is {X_train.shape}")
+    logger.info(f"The DictVectorizer has {len(dv.feature_names_)} features")
 
     lr = LinearRegression()
     lr.fit(X_train, y_train)
     y_pred = lr.predict(X_train)
     mse = mean_squared_error(y_train, y_pred, squared=False)
-    print(f"The MSE of training is: {mse}")
+    logger.info(f"The MSE of training is: {mse}")
     return lr, dv
 
 @task
@@ -66,7 +68,8 @@ def run_model(df, categorical, dv, lr):
     y_val = df.duration.values
 
     mse = mean_squared_error(y_val, y_pred, squared=False)
-    print(f"The MSE of validation is: {mse}")
+    logger = get_run_logger()
+    logger.info(f"The MSE of validation is: {mse}")
     return
 
 @flow(task_runner=SequentialTaskRunner())
