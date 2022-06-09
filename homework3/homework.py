@@ -1,14 +1,18 @@
 from pathlib import Path
+from prefect import flow, task
+from prefect.task_runners import SequentialTaskRunner
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 import pandas as pd
 import requests
 
-def download_nyc_for_hire_vehicle(save_dir: str) -> str:
-    save_path = Path(save_dir)
+@task
+def download_nyc_for_hire_vehicle(save_path: str) -> str:
+    save_path = Path(save_path)
     
     if not save_path.exists():
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         fname = save_path.name
         r = requests.get(f'https://nyc-tlc.s3.amazonaws.com/trip+data/{fname}')
     
@@ -16,10 +20,12 @@ def download_nyc_for_hire_vehicle(save_dir: str) -> str:
             for chunk in r.iter_content(chunk_size=1024):
                 fout.write(chunk)
 
+@task
 def read_data(path):
     df = pd.read_parquet(path)
     return df
 
+@task
 def prepare_features(df, categorical, train=True):
     df['duration'] = df.dropOff_datetime - df.pickup_datetime
     df['duration'] = df.duration.dt.total_seconds() / 60
@@ -34,6 +40,7 @@ def prepare_features(df, categorical, train=True):
     df[categorical] = df[categorical].fillna(-1).astype('int').astype('str')
     return df
 
+@task
 def train_model(df, categorical):
 
     train_dicts = df[categorical].to_dict(orient='records')
@@ -51,6 +58,7 @@ def train_model(df, categorical):
     print(f"The MSE of training is: {mse}")
     return lr, dv
 
+@task
 def run_model(df, categorical, dv, lr):
     val_dicts = df[categorical].to_dict(orient='records')
     X_val = dv.transform(val_dicts)
@@ -61,6 +69,7 @@ def run_model(df, categorical, dv, lr):
     print(f"The MSE of validation is: {mse}")
     return
 
+@flow(task_runner=SequentialTaskRunner())
 def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
            val_path: str = './data/fhv_tripdata_2021-02.parquet'):
 
@@ -68,6 +77,7 @@ def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
 
     download_nyc_for_hire_vehicle(train_path)
     download_nyc_for_hire_vehicle(val_path)
+
     df_train = read_data(train_path)
     df_train_processed = prepare_features(df_train, categorical)
 
@@ -75,7 +85,7 @@ def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
     df_val_processed = prepare_features(df_val, categorical, False)
 
     # train the model
-    lr, dv = train_model(df_train_processed, categorical)
+    lr, dv = train_model(df_train_processed, categorical).result()
     run_model(df_val_processed, categorical, dv, lr)
 
 main()
