@@ -1,8 +1,20 @@
-import pandas as pd
-
+from pathlib import Path
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+import pandas as pd
+import requests
+
+def download_nyc_for_hire_vehicle(save_dir: str) -> str:
+    save_path = Path(save_dir)
+    
+    if not save_path.exists():
+        fname = save_path.name
+        r = requests.get(f'https://nyc-tlc.s3.amazonaws.com/trip+data/{fname}')
+    
+        with open(save_path, 'wb') as fout:
+            for chunk in r.iter_content(chunk_size=1024):
+                fout.write(chunk)
 
 def read_data(path):
     df = pd.read_parquet(path)
@@ -54,6 +66,8 @@ def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
 
     categorical = ['PUlocationID', 'DOlocationID']
 
+    download_nyc_for_hire_vehicle(train_path)
+    download_nyc_for_hire_vehicle(val_path)
     df_train = read_data(train_path)
     df_train_processed = prepare_features(df_train, categorical)
 
