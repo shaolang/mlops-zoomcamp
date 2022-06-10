@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 from prefect import flow, get_run_logger, task
 from prefect.task_runners import SequentialTaskRunner
@@ -8,17 +9,29 @@ import pandas as pd
 import requests
 
 @task
+def get_paths(date):
+    given_date = datetime.strptime(date, '%Y-%m-%d') if date is not None else datetime.now()
+    one_month_ago = given_date.date().replace(day=1) - timedelta(days=1)
+    two_months_ago = one_month_ago.replace(day=1) - timedelta(days=1)
+    one, two = one_month_ago.strftime('%Y-%m'), two_months_ago.strftime('%Y-%m')
+    path_fmt = './data/fhv_tripdata_{}.parquet'
+
+    return path_fmt.format(one), path_fmt.format(two)
+
+@task
 def download_nyc_for_hire_vehicle(save_path: str) -> str:
     save_path = Path(save_path)
-    
+
     if not save_path.exists():
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fname = save_path.name
         r = requests.get(f'https://nyc-tlc.s3.amazonaws.com/trip+data/{fname}')
-    
+
         with open(save_path, 'wb') as fout:
             for chunk in r.iter_content(chunk_size=1024):
                 fout.write(chunk)
+    logger = get_run_logger()
+    logger.info('Downloaded file to %s', save_path)
 
 @task
 def read_data(path):
@@ -70,12 +83,12 @@ def run_model(df, categorical, dv, lr):
     mse = mean_squared_error(y_val, y_pred, squared=False)
     logger = get_run_logger()
     logger.info(f"The MSE of validation is: {mse}")
+    print(f'The MSE of validation is: {mse:.3f}')
     return
 
 @flow(task_runner=SequentialTaskRunner())
-def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
-           val_path: str = './data/fhv_tripdata_2021-02.parquet'):
-
+def main(date=None):
+    train_path, val_path = get_paths(date).result()
     categorical = ['PUlocationID', 'DOlocationID']
 
     download_nyc_for_hire_vehicle(train_path)
@@ -91,4 +104,6 @@ def main(train_path: str = './data/fhv_tripdata_2021-01.parquet',
     lr, dv = train_model(df_train_processed, categorical).result()
     run_model(df_val_processed, categorical, dv, lr)
 
-main()
+
+if __name__ == '__main__':
+    main(date='2021-08-15')
