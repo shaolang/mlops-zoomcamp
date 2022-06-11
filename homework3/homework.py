@@ -6,12 +6,12 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 import pandas as pd
+import pickle
 import requests
 
 @task
 def get_paths(date):
-    given_date = datetime.strptime(date, '%Y-%m-%d') if date is not None else datetime.now()
-    one_month_ago = given_date.date().replace(day=1) - timedelta(days=1)
+    one_month_ago = date.date().replace(day=1) - timedelta(days=1)
     two_months_ago = one_month_ago.replace(day=1) - timedelta(days=1)
     one, two = one_month_ago.strftime('%Y-%m'), two_months_ago.strftime('%Y-%m')
     path_fmt = './data/fhv_tripdata_{}.parquet'
@@ -88,6 +88,7 @@ def run_model(df, categorical, dv, lr):
 
 @flow(task_runner=SequentialTaskRunner())
 def main(date=None):
+    date = datetime.now() if date is None else datetime.strptime(date, '%Y-%m-%d')
     train_path, val_path = get_paths(date).result()
     categorical = ['PUlocationID', 'DOlocationID']
 
@@ -104,6 +105,19 @@ def main(date=None):
     lr, dv = train_model(df_train_processed, categorical).result()
     run_model(df_val_processed, categorical, dv, lr)
 
+    save_artifacts(date, lr, dv)
+
+
+def save_artifacts(date, model, dict_vectorizer):
+    save_dir = Path('./artifacts/')
+    save_dir.mkdir(parents=True, exist_ok=True)
+    date_str = date.strftime('%Y-%m-%d')
+
+    with open(save_dir / f'model-{date_str}.bin', 'wb') as fout:
+        pickle.dump(model, fout)
+
+    with open(save_dir / f'dv-{date_str}.b', 'wb') as fout:
+        pickle.dump(dict_vectorizer, fout)
 
 if __name__ == '__main__':
     main(date='2021-08-15')
