@@ -1,0 +1,8 @@
+from agrigorev/zoomcamp-model:mlops-3.9.7-slim
+
+COPY starter.py .
+COPY Pipfile .
+COPY Pipfile.lock .
+RUN ["python", "-m", "pip", "install", "pipenv"]
+RUN ["pipenv", "install", "--system"]
+ENTRYPOINT ["python", "starter.py"]
