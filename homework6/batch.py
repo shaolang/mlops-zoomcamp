@@ -37,6 +37,10 @@ def main(year, month):
 def read_data(filename, categorical):
     df = pd.read_parquet(filename)
 
+    return prepare_data(df, categorical)
+
+
+def prepare_data(df, categorical):
     df['duration'] = df.dropOff_datetime - df.pickup_datetime
     df['duration'] = df.duration.dt.total_seconds() / 60
 
@@ -45,6 +49,7 @@ def read_data(filename, categorical):
     df[categorical] = df[categorical].fillna(-1).astype('int').astype('str')
 
     return df
+
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2])
